@@ -86,8 +86,8 @@ static bool commit_read_only(void *ptr, size_t size)
 bool Allocator::commit(void *code, size_t code_size, void *data, size_t data_size)
 {
 	bool ok = true;
-	ok = ok ? ok : commit_execute(code, code_size);
-	ok = ok ? ok : commit_read_only(data, data_size);
+	ok = !ok ? ok : commit_execute(code, code_size);
+	ok = !ok ? ok : commit_read_only(data, data_size);
 	return ok;
 }
 

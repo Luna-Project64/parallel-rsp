@@ -1,6 +1,8 @@
 #pragma once
 
+#ifndef __x86_64__
 #define HAS_FASTCALL
+#endif
 
 #define JIT_DECL __fastcall
 

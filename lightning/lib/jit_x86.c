@@ -820,7 +820,9 @@ _jit_arg_d(jit_state_t *_jit)
     return (node);
 }
 
+#ifndef __X64
 #define JIT_RA0 _RCX - 
+#endif
 
 void
 _jit_getarg_c(jit_state_t *_jit, jit_int32_t u, jit_node_t *v)
