@@ -15,9 +15,7 @@
 #include "rsp_impl.h"
 #include <stdio.h>
 
-#define LOAD_VS() rsp_vect_load_unshuffled_operand(rsp->cp2.regs[vs].e)
 #define LOAD_VT() rsp_vect_load_and_shuffle_operand<e>(rsp->cp2.regs[vt].e)
-#define STORE_RESULT() rsp_vect_write_operand(rsp->cp2.regs[vd].e, result)
 
 #ifdef TRACE_COP2
 #define TRACE_VU(op) printf(#op " v%u, v%u, v%u[%u]\n", vd, vs, vt, e)
@@ -27,23 +25,23 @@
 
 #define VU_INSTANTIATED(op, i) template void JIT_DECL RSP_##op<i>(RSP::CPUState * rsp, uint32_t);
 
-#define IMPL_VU(op)                                                                    \
-	template <unsigned e>                                                              \
-	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                              \
-	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                           \
-	template <unsigned e>                                                              \
-	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, unsigned vs, unsigned vt); \
-	template <unsigned e>                                                              \
-	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                         \
-	{                                                                                  \
-		PackedVU pack;                                                                 \
-		pack.value = value;                                                            \
-		rsp_vect_t result = RSP_##op<e>(rsp, pack.vs, pack.vt);                        \
-		unsigned vd = pack.vd;                                                         \
-		STORE_RESULT();                                                                \
-	}                                                                                  \
-	template <unsigned e>                                                              \
-	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, unsigned vs, unsigned vt)
+#define IMPL_VU(op)                                                                      \
+	template <unsigned e>                                                                \
+	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                                \
+	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                             \
+	template <unsigned e>                                                                \
+	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, rsp_vect_t vs, unsigned vt); \
+	template <unsigned e>                                                                \
+	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                           \
+	{                                                                                    \
+		PackedVU pack;                                                                   \
+		pack.value = value;                                                              \
+		rsp_vect_t vs = rsp_vect_load_unshuffled_operand(rsp->cp2.regs[pack.vs].e);      \
+		rsp_vect_t result = RSP_##op<e>(rsp, vs, pack.vt);                               \
+		rsp_vect_write_operand(rsp->cp2.regs[pack.vd].e, result);                        \
+	}                                                                                    \
+	template <unsigned e>                                                                \
+	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, rsp_vect_t vs, unsigned vt)
 
 // Some VU instructions are basically scalar instructions on lanes
 #define IMPL_VU_S(op)                                                                         \
@@ -81,7 +79,7 @@ IMPL_VU(VABS)
 	TRACE_VU(VABS);
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t acc_lo;
-	rsp_vect_t result = rsp_vabs(LOAD_VS(), LOAD_VT(), &acc_lo);
+	rsp_vect_t result = rsp_vabs(vs, LOAD_VT(), &acc_lo);
 	write_acc_lo(acc, acc_lo);
 	return result;
 }
@@ -96,7 +94,7 @@ IMPL_VU(VADD)
 	rsp_vect_t carry, acc_lo;
 
 	carry = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
-	rsp_vect_t result = rsp_vadd(LOAD_VS(), LOAD_VT(), carry, &acc_lo);
+	rsp_vect_t result = rsp_vadd(vs, LOAD_VT(), carry, &acc_lo);
 
 	write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 	write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
@@ -113,7 +111,7 @@ IMPL_VU(VADDC)
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t sn;
 
-	rsp_vect_t result = rsp_vaddc(LOAD_VS(), LOAD_VT(), rsp_vzero(), &sn);
+	rsp_vect_t result = rsp_vaddc(vs, LOAD_VT(), rsp_vzero(), &sn);
 	write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero()); // TODO: Confirm.
 	write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, sn);
 	write_acc_lo(acc, result);
@@ -128,7 +126,7 @@ IMPL_VU(VAND)
 {
 	TRACE_VU(VAND);
 	uint16_t *acc = rsp->cp2.acc.e;
-	rsp_vect_t result = rsp_vand(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = rsp_vand(vs, LOAD_VT());
 	write_acc_lo(acc, result);
 	return result;
 }
@@ -137,7 +135,7 @@ IMPL_VU(VNAND)
 {
 	TRACE_VU(VNAND);
 	uint16_t *acc = rsp->cp2.acc.e;
-	rsp_vect_t result = rsp_vnand(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = rsp_vnand(vs, LOAD_VT());
 	write_acc_lo(acc, result);
 	return result;
 }
@@ -151,7 +149,7 @@ IMPL_VU(VCH)
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t ge, le, sign, eq, vce;
 
-	rsp_vect_t result = rsp_vch(LOAD_VS(), LOAD_VT(), rsp_vzero(), &ge, &le, &eq, &sign, &vce);
+	rsp_vect_t result = rsp_vch(vs, LOAD_VT(), rsp_vzero(), &ge, &le, &eq, &sign, &vce);
 
 	write_vcc_hi(rsp->cp2.flags[RSP::RSP_VCC].e, ge);
 	write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
@@ -177,7 +175,7 @@ IMPL_VU(VCL)
 	sign = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
 	vce = read_vce(rsp->cp2.flags[RSP::RSP_VCE].e);
 
-	rsp_vect_t result = rsp_vcl(LOAD_VS(), LOAD_VT(), rsp_vzero(), &ge, &le, eq, sign, vce);
+	rsp_vect_t result = rsp_vcl(vs, LOAD_VT(), rsp_vzero(), &ge, &le, eq, sign, vce);
 
 	write_vcc_hi(rsp->cp2.flags[RSP::RSP_VCC].e, ge);
 	write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
@@ -197,7 +195,7 @@ IMPL_VU(VCR)
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t ge, le;
 
-	rsp_vect_t result = rsp_vcr(LOAD_VS(), LOAD_VT(), rsp_vzero(), &ge, &le);
+	rsp_vect_t result = rsp_vcr(vs, LOAD_VT(), rsp_vzero(), &ge, &le);
 
 #ifdef INTENSE_DEBUG
 	for (unsigned i = 0; i < 8; i++)
@@ -228,7 +226,7 @@ IMPL_VU(VEQ)
 	eq = read_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e);
 	sign = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
 
-	rsp_vect_t result = rsp_veq(LOAD_VS(), LOAD_VT(), rsp_vzero(), &le, eq, sign);
+	rsp_vect_t result = rsp_veq(vs, LOAD_VT(), rsp_vzero(), &le, eq, sign);
 
 	write_vcc_hi(rsp->cp2.flags[RSP::RSP_VCC].e, rsp_vzero());
 	write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
@@ -247,7 +245,7 @@ IMPL_VU(VGE)
 	eq = read_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e);
 	sign = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
 
-	rsp_vect_t result = rsp_vge(LOAD_VS(), LOAD_VT(), rsp_vzero(), &le, eq, sign);
+	rsp_vect_t result = rsp_vge(vs, LOAD_VT(), rsp_vzero(), &le, eq, sign);
 
 	write_vcc_hi(rsp->cp2.flags[RSP::RSP_VCC].e, rsp_vzero());
 	write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
@@ -266,7 +264,7 @@ IMPL_VU(VLT)
 	eq = read_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e);
 	sign = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
 
-	rsp_vect_t result = rsp_vlt(LOAD_VS(), LOAD_VT(), rsp_vzero(), &le, eq, sign);
+	rsp_vect_t result = rsp_vlt(vs, LOAD_VT(), rsp_vzero(), &le, eq, sign);
 
 	write_vcc_hi(rsp->cp2.flags[RSP::RSP_VCC].e, rsp_vzero());
 	write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
@@ -285,7 +283,7 @@ IMPL_VU(VNE)
 	eq = read_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e);
 	sign = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
 
-	rsp_vect_t result = rsp_vne(LOAD_VS(), LOAD_VT(), rsp_vzero(), &le, eq, sign);
+	rsp_vect_t result = rsp_vne(vs, LOAD_VT(), rsp_vzero(), &le, eq, sign);
 #ifdef INTENSE_DEBUG
 	for (unsigned i = 0; i < 8; i++)
 		fprintf(stderr, "VD[%d] = %d\n", i, reinterpret_cast<int16_t *>(&result)[i]);
@@ -320,7 +318,7 @@ IMPL_VU(VMACF)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmacf_vmacu<false>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmacf_vmacu<false>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -337,7 +335,7 @@ IMPL_VU(VMACU)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmacf_vmacu<true>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmacf_vmacu<true>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -378,7 +376,7 @@ IMPL_VU(VMADH)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadh_vmudh<true>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadh_vmudh<true>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -396,7 +394,7 @@ IMPL_VU(VMUDH)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadh_vmudh<false>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadh_vmudh<false>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -418,7 +416,7 @@ IMPL_VU(VMADL)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadl_vmudl<true>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadl_vmudl<true>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -436,7 +434,7 @@ IMPL_VU(VMUDL)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadl_vmudl<false>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadl_vmudl<false>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -458,7 +456,7 @@ IMPL_VU(VMADM)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadm_vmudm<true>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadm_vmudm<true>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -476,7 +474,7 @@ IMPL_VU(VMUDM)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadm_vmudm<false>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadm_vmudm<false>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -498,7 +496,7 @@ IMPL_VU(VMADN)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadn_vmudn<true>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadn_vmudn<true>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -516,7 +514,7 @@ IMPL_VU(VMUDN)
 	acc_md = read_acc_md(acc);
 	acc_hi = read_acc_hi(acc);
 
-	result = rsp_vmadn_vmudn<false>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmadn_vmudn<false>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -546,7 +544,7 @@ IMPL_VU(VMRG)
 	rsp_vect_t le;
 
 	le = read_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e);
-	rsp_vect_t result = rsp_vmrg(LOAD_VS(), LOAD_VT(), le);
+	rsp_vect_t result = rsp_vmrg(vs, LOAD_VT(), le);
 	write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 	write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 	write_acc_lo(acc, result);
@@ -564,7 +562,7 @@ IMPL_VU(VMULF)
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t acc_lo, acc_md, acc_hi, result;
 
-	result = rsp_vmulf_vmulu<false>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmulf_vmulu<false>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -601,7 +599,7 @@ IMPL_VU(VMULU)
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t acc_lo, acc_md, acc_hi, result;
 
-	result = rsp_vmulf_vmulu<true>(LOAD_VS(), LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
+	result = rsp_vmulf_vmulu<true>(vs, LOAD_VT(), rsp_vzero(), &acc_lo, &acc_md, &acc_hi);
 
 	write_acc_lo(acc, acc_lo);
 	write_acc_md(acc, acc_md);
@@ -670,7 +668,7 @@ IMPL_VU(VOR)
 	TRACE_VU(VOR);
 	uint16_t *acc = rsp->cp2.acc.e;
 
-	rsp_vect_t result = rsp_vor(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = rsp_vor(vs, LOAD_VT());
 
 	write_acc_lo(acc, result);
 	return result;
@@ -681,7 +679,7 @@ IMPL_VU(VNOR)
 	TRACE_VU(VNOR);
 	uint16_t *acc = rsp->cp2.acc.e;
 
-	rsp_vect_t result = rsp_vnor(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = rsp_vnor(vs, LOAD_VT());
 
 	write_acc_lo(acc, result);
 	return result;
@@ -816,7 +814,7 @@ IMPL_VU(VSUB)
 
 	carry = read_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e);
 
-	rsp_vect_t result = rsp_vsub(LOAD_VS(), LOAD_VT(), carry, &acc_lo);
+	rsp_vect_t result = rsp_vsub(vs, LOAD_VT(), carry, &acc_lo);
 
 	write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 	write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
@@ -833,7 +831,7 @@ IMPL_VU(VSUBC)
 	uint16_t *acc = rsp->cp2.acc.e;
 	rsp_vect_t eq, sn;
 
-	rsp_vect_t result = rsp_vsubc(LOAD_VS(), LOAD_VT(), rsp_vzero(), &eq, &sn);
+	rsp_vect_t result = rsp_vsubc(vs, LOAD_VT(), rsp_vzero(), &eq, &sn);
 
 	write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, eq);
 	write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, sn);
@@ -850,7 +848,7 @@ IMPL_VU(VXOR)
 	TRACE_VU(VXOR);
 	uint16_t *acc = rsp->cp2.acc.e;
 
-	rsp_vect_t result = rsp_vxor(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = rsp_vxor(vs, LOAD_VT());
 
 	write_acc_lo(acc, result);
 	return result;
@@ -861,7 +859,7 @@ IMPL_VU(VNXOR)
 	TRACE_VU(VXNOR);
 	uint16_t *acc = rsp->cp2.acc.e;
 
-	rsp_vect_t result = rsp_vnxor(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = rsp_vnxor(vs, LOAD_VT());
 
 	write_acc_lo(acc, result);
 	return result;
@@ -871,7 +869,7 @@ IMPL_VU(VNXOR)
 IMPL_VU(RESERVED)
 {
 	uint16_t *acc = rsp->cp2.acc.e;
-	rsp_vect_t result = _mm_add_epi16(LOAD_VS(), LOAD_VT());
+	rsp_vect_t result = _mm_add_epi16(vs, LOAD_VT());
 	write_acc_lo(acc, result);
 
 	result = rsp_vzero();
