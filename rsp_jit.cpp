@@ -900,20 +900,20 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 		using VUOp = void(JIT_DECL *)(RSP::CPUState *, uint32_t);
 		VUOp vuop = nullptr;
 
-#define OPS_DECL(e) \
-		static const VUOp ops##e[64] = {                                                                            \
-		VU::RSP_VMULF<e>, VU::RSP_VMULU<e>, VU::RSP_VRNDP<e>, VU::RSP_VMULQ<e>, VU::RSP_VMUDL<e>, VU::RSP_VMUDM<e>, \
-		VU::RSP_VMUDN<e>, VU::RSP_VMUDH<e>, VU::RSP_VMACF<e>, VU::RSP_VMACU<e>, VU::RSP_VRNDN<e>, VU::RSP_VMACQ<e>, \
-		VU::RSP_VMADL<e>, VU::RSP_VMADM<e>, VU::RSP_VMADN<e>, VU::RSP_VMADH<e>, VU::RSP_VADD<e>,  VU::RSP_VSUB<e>,  \
-		nullptr,          VU::RSP_VABS<e>,  VU::RSP_VADDC<e>, VU::RSP_VSUBC<e>, nullptr,          nullptr,          \
-		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          VU::RSP_VSAR<e>,  \
-		nullptr,          nullptr,          VU::RSP_VLT<e>,   VU::RSP_VEQ<e>,   VU::RSP_VNE<e>,   VU::RSP_VGE<e>,   \
-		VU::RSP_VCL<e>,   VU::RSP_VCH<e>,   VU::RSP_VCR<e>,   VU::RSP_VMRG<e>,  VU::RSP_VAND<e>,  VU::RSP_VNAND<e>, \
-		VU::RSP_VOR<e>,   VU::RSP_VNOR<e>,  VU::RSP_VXOR<e>,  VU::RSP_VNXOR<e>, nullptr,          nullptr,          \
+#define OPS_DECL(e)                                                                                                 \
+	static const VUOp ops##e[64] = {                                                                                \
+		nullptr,          nullptr,          VU::RSP_VRNDP<e>, VU::RSP_VMULQ<e>, nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          VU::RSP_VRNDN<e>, VU::RSP_VMACQ<e>, \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          \
 		VU::RSP_VRCP<e>,  VU::RSP_VRCPL<e>, VU::RSP_VRCPH<e>, VU::RSP_VMOV<e>,  VU::RSP_VRSQ<e>,  VU::RSP_VRSQL<e>, \
 		VU::RSP_VRSQH<e>, VU::RSP_VNOP<e>,  nullptr,          nullptr,          nullptr,          nullptr,          \
 		nullptr,          nullptr,          nullptr,          VU::RSP_VNOP<e>                                       \
-		};
+	};
 
 		switch (e)
 		{
@@ -922,8 +922,6 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 		{                                   \
 			OPS_DECL(e);                    \
 			vuop = ops##e[op];              \
-			if (!vuop)                      \
-				vuop = VU::RSP_RESERVED<e>; \
 		}                                   \
 		break;
 			ELEMENT_INSTANTIATE(a, OPS_CASE)
@@ -948,12 +946,14 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 
 		switch (e)
 		{
-#define OPS_CASE(a, e)                      \
-		case e:                             \
-		{                                   \
-			OPS_DECL(e);                    \
-			vuopv = ops##e[op];             \
-		}                                   \
+#define OPS_CASE(a, e)						 \
+		case e:                              \
+		{                                    \
+			OPS_DECL(e);                     \
+			vuopv = ops##e[op];              \
+			if (!vuopv)                      \
+				vuopv = VU::RSP_RESERVED<e>; \
+		}                                    \
 		break;
 			ELEMENT_INSTANTIATE(a, OPS_CASE)
 #undef OPS_CASE
@@ -963,7 +963,7 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 		regs.flush_caller_save_registers(_jit);
 		jit_begin_call(_jit);
 		jit_pushargr(JIT_REGISTER_STATE);
-		if (vuopv)
+		if (!vuop)
 		{
 			jit_pushargi(vt);
 			// this is hijacked to load xmm0

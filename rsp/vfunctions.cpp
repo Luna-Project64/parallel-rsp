@@ -28,19 +28,8 @@
 
 #define IMPL_VU(op)                                                                                                \
 	template <unsigned e>                                                                                          \
-	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                                                          \
-	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                                                       \
-	template <unsigned e>                                                                                          \
 	rsp_vect_t JIT_VECTORDECL RSP_##op(RSP::CPUState *rsp, unsigned vt, rsp_vect_t vs);                            \
 	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED_V)                                                                     \
-	template <unsigned e>                                                                                          \
-	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                                                     \
-	{                                                                                                              \
-		PackedVU pack;                                                                                             \
-		pack.value = value;                                                                                        \
-		rsp_vect_t result = RSP_##op<e>(rsp, pack.vt, rsp_vect_load_unshuffled_operand(rsp->cp2.regs[pack.vs].e)); \
-		rsp_vect_write_operand(rsp->cp2.regs[pack.vd].e, result);                                                  \
-	}                                                                                                              \
 	template <unsigned e>                                                                                          \
 	rsp_vect_t JIT_VECTORDECL RSP_##op(RSP::CPUState *rsp, unsigned vt, rsp_vect_t vs)
 
