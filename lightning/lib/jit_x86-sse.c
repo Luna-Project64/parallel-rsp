@@ -17,6 +17,8 @@
  *	Paulo Cesar Pereira de Andrade
  */
 
+#define XMM_HIGHJACK
+
 #if PROTO
 #  define _XMM6_REGNO			6
 #  define _XMM7_REGNO			7
@@ -32,7 +34,8 @@
 #define X86_SSE_MOV1			0x11
 #define X86_SSE_MOVLP			0x12
 #define X86_SSE_MOVHP			0x16
-#define X86_SSE_MOVA			0x28
+#define X86_SSE_MOVAPS_LOAD     0x28
+#define X86_SSE_MOVAPS_STORE    0x29
 #define X86_SSE_CVTIS			0x2a
 #define X86_SSE_CVTTSI			0x2c
 #define X86_SSE_CVTSI			0x2d
@@ -113,6 +116,12 @@ _sselxr(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t, jit_int32_t);
 #  define ssexrx(p,c,md,rb,ri,ms,rd)	_ssexrx(_jit,p,c,md,rb,ri,ms,rd)
 #  define movssmr(md,rb,ri,ms,rd)	ssexrx(0xf3,X86_SSE_MOV,md,rb,ri,ms,rd)
 #  define movsdmr(md,rb,ri,ms,rd)	ssexrx(0xf2,X86_SSE_MOV,md,rb,ri,ms,rd)
+#ifdef XMM_HIGHJACK
+#  define ssexrx_xmm(c, md, rb, ri, ms, rd) _ssexrx_xmm(_jit, c, md, rb, ri, ms, rd)
+#  define movapsrm(md, rb, ri, ms, rd) ssexrx_xmm(X86_SSE_MOVAPS_LOAD, md, rb, ri, ms, rd)
+  #define movapsmr(md, rb, ri, ms, rd) ssexrx_xmm(X86_SSE_MOVAPS_STORE, md, rb, ri, ms, rd)
+static void _ssexrx_xmm(jit_state_t *, jit_int32_t, jit_int32_t, jit_int32_t, jit_int32_t, jit_int32_t, jit_int32_t);
+#endif
 #  define movssrm(rs,md,mb,mi,ms)	ssexrx(0xf3,X86_SSE_MOV1,md,mb,mi,ms,rs)
 #  define movsdrm(rs,md,mb,mi,ms)	ssexrx(0xf2,X86_SSE_MOV1,md,mb,mi,ms,rs)
 static void
@@ -580,6 +589,14 @@ _ssexrx(jit_state_t *_jit, jit_int32_t px, jit_int32_t code, jit_int32_t md,
     ic(0x0f);
     ic(code);
     rx(rd, md, rb, ri, ms);
+}
+
+static void _ssexrx_xmm(jit_state_t *_jit, jit_int32_t code, jit_int32_t md, jit_int32_t rb, jit_int32_t ri, jit_int32_t ms, jit_int32_t rd)
+{
+	rex(0, 0, rd, ri, rb);
+	ic(0x0f);
+	ic(code);
+	rx(rd, md, rb, ri, ms);
 }
 
 static void
@@ -1335,6 +1352,9 @@ _sse_ldxr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 static void
 _sse_ldxi_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
+#ifdef XMM_HIGHJACK
+	return movapsrm(i0, r1, _NOREG, _SCL1, r0);
+#else
     jit_int32_t		reg;
     if (can_sign_extend_int_p(i0))
 	movssmr(i0, r1, _NOREG, _SCL1, r0);
@@ -1349,6 +1369,7 @@ _sse_ldxi_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 #endif
 	jit_unget_reg(reg);
     }
+#endif
 }
 
 static void
@@ -1408,6 +1429,9 @@ _sse_stxr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 static void
 _sse_stxi_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 {
+#ifdef XMM_HIGHJACK
+	return movapsmr(i0, r0, _NOREG, _SCL1, r1);
+#else
     jit_int32_t		reg;
     if (can_sign_extend_int_p(i0))
 	movssrm(r1, i0, r0, _NOREG, _SCL1);
@@ -1422,6 +1446,7 @@ _sse_stxi_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 #endif
 	jit_unget_reg(reg);
     }
+#endif
 }
 
 static void

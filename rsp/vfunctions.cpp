@@ -24,6 +24,7 @@
 #endif
 
 #define VU_INSTANTIATED(op, i) template void JIT_DECL RSP_##op<i>(RSP::CPUState * rsp, uint32_t);
+#define VU_INSTANTIATED_V(op, i) template rsp_vect_t JIT_VECTORDECL RSP_##op<i>(RSP::CPUState * rsp, unsigned vt, rsp_vect_t vs);
 
 #define IMPL_VU(op)                                                                                                \
 	template <unsigned e>                                                                                          \
@@ -31,6 +32,7 @@
 	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                                                       \
 	template <unsigned e>                                                                                          \
 	rsp_vect_t JIT_VECTORDECL RSP_##op(RSP::CPUState *rsp, unsigned vt, rsp_vect_t vs);                            \
+	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED_V)                                                                     \
 	template <unsigned e>                                                                                          \
 	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                                                     \
 	{                                                                                                              \

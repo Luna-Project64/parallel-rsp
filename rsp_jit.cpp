@@ -897,10 +897,9 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 		uint32_t vt = (instr >> 16) & 31;
 		uint32_t e = (instr >> 21) & 15;
 
-		PackedVU packed{ (uint8_t)vd, (uint8_t)vs, (uint8_t)vt };
-
-		using VUOp = void (JIT_DECL *)(RSP::CPUState *, uint32_t);
+		using VUOp = void(JIT_DECL *)(RSP::CPUState *, uint32_t);
 		VUOp vuop = nullptr;
+
 #define OPS_DECL(e) \
 		static const VUOp ops##e[64] = {                                                                            \
 		VU::RSP_VMULF<e>, VU::RSP_VMULU<e>, VU::RSP_VRNDP<e>, VU::RSP_VMULQ<e>, VU::RSP_VMUDL<e>, VU::RSP_VMUDM<e>, \
@@ -918,15 +917,44 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 
 		switch (e)
 		{
-#define OPS_CASE(a, e)   \
-	case e:              \
-	{                    \
-		OPS_DECL(e);     \
-		vuop = ops##e[op]; \
-		if (!vuop) \
+#define OPS_CASE(a, e)                      \
+		case e:                             \
+		{                                   \
+			OPS_DECL(e);                    \
+			vuop = ops##e[op];              \
+			if (!vuop)                      \
 				vuop = VU::RSP_RESERVED<e>; \
-	}                    \
-	break;
+		}                                   \
+		break;
+			ELEMENT_INSTANTIATE(a, OPS_CASE)
+#undef OPS_CASE
+		}
+#undef OPS_DECL
+
+		using VUOpV = rsp_vect_t(JIT_VECTORDECL *)(RSP::CPUState *, unsigned, rsp_vect_t);
+		VUOpV vuopv = nullptr;
+
+#define OPS_DECL(e)                                                                                                 \
+	static const VUOpV ops##e[64] = {                                                                               \
+		VU::RSP_VMULF<e>, VU::RSP_VMULU<e>, nullptr,          nullptr,          VU::RSP_VMUDL<e>, VU::RSP_VMUDM<e>, \
+		VU::RSP_VMUDN<e>, VU::RSP_VMUDH<e>, VU::RSP_VMACF<e>, VU::RSP_VMACU<e>, nullptr,          nullptr,          \
+		VU::RSP_VMADL<e>, VU::RSP_VMADM<e>, VU::RSP_VMADN<e>, VU::RSP_VMADH<e>, VU::RSP_VADD<e>,  VU::RSP_VSUB<e>,  \
+		nullptr,          VU::RSP_VABS<e>,  VU::RSP_VADDC<e>, VU::RSP_VSUBC<e>, nullptr,          nullptr,          \
+		nullptr,          nullptr,          nullptr,          nullptr,          nullptr,          VU::RSP_VSAR<e>,  \
+		nullptr,          nullptr,          VU::RSP_VLT<e>,   VU::RSP_VEQ<e>,   VU::RSP_VNE<e>,   VU::RSP_VGE<e>,   \
+		VU::RSP_VCL<e>,   VU::RSP_VCH<e>,   VU::RSP_VCR<e>,   VU::RSP_VMRG<e>,  VU::RSP_VAND<e>,  VU::RSP_VNAND<e>, \
+		VU::RSP_VOR<e>,   VU::RSP_VNOR<e>,  VU::RSP_VXOR<e>,  VU::RSP_VNXOR<e> \
+	};
+
+		switch (e)
+		{
+#define OPS_CASE(a, e)                      \
+		case e:                             \
+		{                                   \
+			OPS_DECL(e);                    \
+			vuopv = ops##e[op];             \
+		}                                   \
+		break;
 			ELEMENT_INSTANTIATE(a, OPS_CASE)
 #undef OPS_CASE
 		}
@@ -935,8 +963,21 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
 		regs.flush_caller_save_registers(_jit);
 		jit_begin_call(_jit);
 		jit_pushargr(JIT_REGISTER_STATE);
-		jit_pushargi(packed.value);
-		jit_end_call(_jit, (Func) vuop);
+		if (vuopv)
+		{
+			jit_pushargi(vt);
+			// this is hijacked to load xmm0
+			jit_ldxi_f(JIT_F0, JIT_REGISTER_STATE, offsetof(CPUState, cp2.regs[vs].e));
+			jit_end_call(_jit, (Func)vuopv);
+			// this is hijacked to store xmm0
+			jit_stxi_f(offsetof(CPUState, cp2.regs[vd].e), JIT_REGISTER_STATE, JIT_F0);
+		}
+		else
+		{
+			PackedVU packed{ (uint8_t)vd, (uint8_t)vs, (uint8_t)vt };
+			jit_pushargi(packed.value);
+			jit_end_call(_jit, (Func)vuop);
+		}
 		return;
 	}
 

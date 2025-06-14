@@ -26,7 +26,7 @@
 /*
  * Types
  */
-#define jit_sse2_p()		jit_cpu.sse2
+#define jit_sse2_p()		1
 #define jit_x87_reg_p(reg)	((reg) >= _ST0 && (reg) <= _ST6)
 #if __WORDSIZE == 32
 #  if defined(__x86_64__)
