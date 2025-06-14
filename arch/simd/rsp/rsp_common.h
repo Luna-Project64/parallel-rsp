@@ -65,6 +65,7 @@ static inline __m128i rsp_vect_load_and_shuffle_operand(const uint16_t *src)
 	case 5:
 	case 6:
 	case 7:
+		__asm__("" : "=x"(v)); /* Do not remove. */
 		v = _mm_insert_epi16(v, src[element - 4], 0);
 		v = _mm_insert_epi16(v, src[element - 0], 1);
 		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(1, 1, 0, 0));
@@ -80,6 +81,7 @@ static inline __m128i rsp_vect_load_and_shuffle_operand(const uint16_t *src)
 	case 13:
 	case 14:
 	case 15:
+		__asm__("" : "=x"(v)); /* Do not remove. */
 		v = _mm_insert_epi16(v, src[element - 8], 0);
 		v = _mm_unpacklo_epi16(v, v);
 		v = _mm_shuffle_epi32(v, _MM_SHUFFLE(0, 0, 0, 0));
