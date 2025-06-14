@@ -25,23 +25,22 @@
 
 #define VU_INSTANTIATED(op, i) template void JIT_DECL RSP_##op<i>(RSP::CPUState * rsp, uint32_t);
 
-#define IMPL_VU(op)                                                                      \
-	template <unsigned e>                                                                \
-	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                                \
-	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                             \
-	template <unsigned e>                                                                \
-	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, rsp_vect_t vs, unsigned vt); \
-	template <unsigned e>                                                                \
-	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                           \
-	{                                                                                    \
-		PackedVU pack;                                                                   \
-		pack.value = value;                                                              \
-		rsp_vect_t vs = rsp_vect_load_unshuffled_operand(rsp->cp2.regs[pack.vs].e);      \
-		rsp_vect_t result = RSP_##op<e>(rsp, vs, pack.vt);                               \
-		rsp_vect_write_operand(rsp->cp2.regs[pack.vd].e, result);                        \
-	}                                                                                    \
-	template <unsigned e>                                                                \
-	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, rsp_vect_t vs, unsigned vt)
+#define IMPL_VU(op)                                                                                                \
+	template <unsigned e>                                                                                          \
+	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                                                          \
+	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                                                       \
+	template <unsigned e>                                                                                          \
+	rsp_vect_t JIT_VECTORDECL RSP_##op(RSP::CPUState *rsp, unsigned vt, rsp_vect_t vs);                            \
+	template <unsigned e>                                                                                          \
+	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                                                     \
+	{                                                                                                              \
+		PackedVU pack;                                                                                             \
+		pack.value = value;                                                                                        \
+		rsp_vect_t result = RSP_##op<e>(rsp, pack.vt, rsp_vect_load_unshuffled_operand(rsp->cp2.regs[pack.vs].e)); \
+		rsp_vect_write_operand(rsp->cp2.regs[pack.vd].e, result);                                                  \
+	}                                                                                                              \
+	template <unsigned e>                                                                                          \
+	rsp_vect_t JIT_VECTORDECL RSP_##op(RSP::CPUState *rsp, unsigned vt, rsp_vect_t vs)
 
 // Some VU instructions are basically scalar instructions on lanes
 #define IMPL_VU_S(op)                                                                         \

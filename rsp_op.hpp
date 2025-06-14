@@ -105,6 +105,56 @@ template <unsigned e> void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t)
 	DECL_COP2(VRSQH);
 	DECL_COP2(VNOP);
 	DECL_COP2(RESERVED);
-}
+#undef DECL_COP2
+
+#define DECL_COP2_V(op)     \
+template <unsigned e>  rsp_vect_t JIT_VECTORDECL RSP_##op(RSP::CPUState *rsp, unsigned vt, rsp_vect_t vs)
+    DECL_COP2_V(VMULF);
+    DECL_COP2_V(VMULU);
+    // DECL_COP2_V(VRNDP);
+    // DECL_COP2_V(VMULQ);
+    DECL_COP2_V(VMUDL);
+    DECL_COP2_V(VMUDM);
+    DECL_COP2_V(VMUDN);
+    DECL_COP2_V(VMUDH);
+    DECL_COP2_V(VMACF);
+    DECL_COP2_V(VMACU);
+    // DECL_COP2_V(VRNDN);
+    // DECL_COP2_V(VMACQ);
+    DECL_COP2_V(VMADL);
+    DECL_COP2_V(VMADM);
+    DECL_COP2_V(VMADN);
+    DECL_COP2_V(VMADH);
+    DECL_COP2_V(VADD);
+    DECL_COP2_V(VSUB);
+    DECL_COP2_V(VABS);
+    DECL_COP2_V(VADDC);
+    DECL_COP2_V(VSUBC);
+    DECL_COP2_V(VSAR);
+    DECL_COP2_V(VLT);
+    DECL_COP2_V(VEQ);
+    DECL_COP2_V(VNE);
+    DECL_COP2_V(VGE);
+    DECL_COP2_V(VCL);
+    DECL_COP2_V(VCH);
+    DECL_COP2_V(VCR);
+    DECL_COP2_V(VMRG);
+    DECL_COP2_V(VAND);
+    DECL_COP2_V(VNAND);
+    DECL_COP2_V(VOR);
+    DECL_COP2_V(VNOR);
+    DECL_COP2_V(VXOR);
+    DECL_COP2_V(VNXOR);
+    // DECL_COP2_V(VRCP);
+    // DECL_COP2_V(VRCPL);
+    // DECL_COP2_V(VRCPH);
+    // DECL_COP2_V(VMOV);
+    // DECL_COP2_V(VRSQ);
+    // DECL_COP2_V(VRSQL);
+    // DECL_COP2_V(VRSQH);
+    // DECL_COP2_V(VNOP);
+    DECL_COP2_V(RESERVED);
+#undef DECL_COP2_V
+    }
 
 #endif

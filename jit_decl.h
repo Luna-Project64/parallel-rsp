@@ -5,6 +5,7 @@
 #endif
 
 #define JIT_DECL __fastcall
+#define JIT_VECTORDECL __vectorcall
 
 #ifdef HAS_FASTCALL
 #define JIT_UA_DECL __stdcall
