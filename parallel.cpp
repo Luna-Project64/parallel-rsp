@@ -213,6 +213,7 @@ extern "C"
 	{
 		*RSP::rsp.SP_PC_REG = 0x00000000;
 		delete RSP::cpu;
+		RSP::cpu = nullptr;
 	}
 	
 	EXPORT void CALL SetSettingInfo(RSP::Zilmar::PLUGIN_SETTINGS * info)
@@ -234,16 +235,17 @@ extern "C"
 	{
 		RSP::graphics_hle = RSP::Zilmar::GetSystemSetting(RSP::Zilmar::Set_GraphicsHle);
 
-#ifdef DEBUG_JIT
-		RSP::cpu = new (std::align_val_t(64)) RSP::CPU();
-#else
-		RSP::cpu = new (std::align_val_t(64)) RSP::JIT::CPU();
-#endif
 		if (CycleCount)
 			*CycleCount = 0;
 
 		if (Rsp_Info.DMEM == Rsp_Info.IMEM) /* usually dummy RSP data for testing */
 			return; /* DMA is not executed just because plugin initiates. */
+
+#ifdef DEBUG_JIT
+		RSP::cpu = new (std::align_val_t(64)) RSP::CPU();
+#else
+		RSP::cpu = new (std::align_val_t(64)) RSP::JIT::CPU();
+#endif
 
 		RSP::rsp = Rsp_Info;
 		*RSP::rsp.SP_PC_REG = 0x04001000 & 0x00000FFF; /* task init bug on Mupen64 */
