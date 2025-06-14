@@ -8,7 +8,7 @@
 #include "../../../rsp/reciprocal.h"
 
 template <bool VRSQ>
-inline __m128i rsp_vrcp_vrsq(RSP::CPUState *rsp, int dp, unsigned src, unsigned e, unsigned dest, unsigned de)
+inline void rsp_vrcp_vrsq(RSP::CPUState *rsp, int dp, unsigned src, unsigned e, unsigned dest, unsigned de)
 {
 	uint32_t dp_input, sp_input;
 	int32_t input, result;
@@ -76,6 +76,4 @@ inline __m128i rsp_vrcp_vrsq(RSP::CPUState *rsp, int dp, unsigned src, unsigned 
 	// Write out the results.
 	rsp->cp2.div_out = result >> 16;
 	rsp->cp2.regs[dest].e[de & 0x7] = result;
-
-	return rsp_vect_load_unshuffled_operand(rsp->cp2.regs[dest].e);
 }

@@ -683,8 +683,7 @@ namespace VU
 		write_acc_lo(acc, LOAD_VT());
 
 		rsp->cp2.dp_flag = 0;
-		rsp_vect_t result = rsp_vrcp_vrsq<false>(rsp, 0, vt, e, vd, de);
-		STORE_RESULT();
+		return rsp_vrcp_vrsq<false>(rsp, 0, vt, e, vd, de);
 	}
 
 	IMPL_VU(VRCPL)
@@ -698,8 +697,7 @@ namespace VU
 		int dp = rsp->cp2.dp_flag & 1;
 		rsp->cp2.dp_flag = 0;
 
-		rsp_vect_t result = rsp_vrcp_vrsq<false>(rsp, dp, vt, e, vd, de);
-		STORE_RESULT();
+		return rsp_vrcp_vrsq<false>(rsp, dp, vt, e, vd, de);
 	}
 
 	IMPL_VU(VRSQ)
@@ -711,8 +709,7 @@ namespace VU
 		write_acc_lo(acc, LOAD_VT());
 
 		rsp->cp2.dp_flag = 0;
-		rsp_vect_t result = rsp_vrcp_vrsq<true>(rsp, 0, vt, e, vd, de);
-		STORE_RESULT();
+		return rsp_vrcp_vrsq<true>(rsp, 0, vt, e, vd, de);
 	}
 
 	IMPL_VU(VRSQL)
@@ -726,8 +723,7 @@ namespace VU
 		int dp = rsp->cp2.dp_flag & 1;
 		rsp->cp2.dp_flag = 0;
 
-		rsp_vect_t result = rsp_vrcp_vrsq<true>(rsp, dp, vt, e, vd, de);
-		STORE_RESULT();
+		return rsp_vrcp_vrsq<true>(rsp, dp, vt, e, vd, de);
 	}
 
 	//
@@ -745,8 +741,7 @@ namespace VU
 		// Specify double-precision for VRCPL on the next pass.
 		rsp->cp2.dp_flag = 1;
 
-		rsp_vect_t result = rsp_vdivh(rsp, vt, e, vd, de);
-		STORE_RESULT();
+		return rsp_vdivh(rsp, vt, e, vd, de);
 	}
 
 	IMPL_VU(VRSQH)
@@ -760,8 +755,7 @@ namespace VU
 		// Specify double-precision for VRCPL on the next pass.
 		rsp->cp2.dp_flag = 1;
 
-		rsp_vect_t result = rsp_vdivh(rsp, vt, e, vd, de);
-		STORE_RESULT();
+		return rsp_vdivh(rsp, vt, e, vd, de);
 	}
 
 	//
