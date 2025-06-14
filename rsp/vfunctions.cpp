@@ -33,6 +33,25 @@
 	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                                     \
 	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                                  \
 	template <unsigned e>                                                                     \
+	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, unsigned vs, unsigned vt);		  \
+	template <unsigned e>                                                                     \
+	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                                \
+	{                                                                                         \
+		PackedVU pack;                                                                        \
+		pack.value = value;                                                                   \
+		rsp_vect_t result = RSP_##op<e>(rsp, pack.vs, pack.vt);								  \
+        unsigned vd = pack.vd;																  \
+		STORE_RESULT();																		  \
+	}                                                                                         \
+	template <unsigned e>                                                                     \
+	static rsp_vect_t JIT_DECL RSP_##op(RSP::CPUState *rsp, unsigned vs, unsigned vt)
+
+// Some VU instructions are basically scalar instructions on lanes
+#define IMPL_VU_S(op)                                                                         \
+	template <unsigned e>                                                                     \
+	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t);                                     \
+	ELEMENT_INSTANTIATE(op, VU_INSTANTIATED)                                                  \
+	template <unsigned e>                                                                     \
 	static void JIT_DECL RSP_##op(RSP::CPUState *rsp, unsigned vd, unsigned vs, unsigned vt); \
 	template <unsigned e>                                                                     \
 	void JIT_DECL RSP_##op(RSP::CPUState *rsp, uint32_t value)                                \
@@ -63,7 +82,7 @@ namespace VU
 		rsp_vect_t acc_lo;
 		rsp_vect_t result = rsp_vabs(LOAD_VS(), LOAD_VT(), &acc_lo);
 		write_acc_lo(acc, acc_lo);
-		rsp_vect_write_operand(rsp->cp2.regs[vd].e, result);
+	    return result;
 	}
 
 	//
@@ -80,8 +99,8 @@ namespace VU
 
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, acc_lo);
-		STORE_RESULT();
+	    write_acc_lo(acc, acc_lo);
+	    return result;
 	}
 
 	//
@@ -96,8 +115,8 @@ namespace VU
 		rsp_vect_t result = rsp_vaddc(LOAD_VS(), LOAD_VT(), rsp_vzero(), &sn);
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero()); // TODO: Confirm.
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, sn);
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -109,8 +128,8 @@ namespace VU
 		TRACE_VU(VAND);
 		uint16_t *acc = rsp->cp2.acc.e;
 		rsp_vect_t result = rsp_vand(LOAD_VS(), LOAD_VT());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	IMPL_VU(VNAND)
@@ -118,8 +137,8 @@ namespace VU
 		TRACE_VU(VNAND);
 		uint16_t *acc = rsp->cp2.acc.e;
 		rsp_vect_t result = rsp_vnand(LOAD_VS(), LOAD_VT());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -138,8 +157,8 @@ namespace VU
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, eq);
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, sign);
 		write_vce(rsp->cp2.flags[RSP::RSP_VCE].e, vce);
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -164,8 +183,8 @@ namespace VU
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vce(rsp->cp2.flags[RSP::RSP_VCE].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -189,8 +208,8 @@ namespace VU
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vce(rsp->cp2.flags[RSP::RSP_VCE].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -214,8 +233,8 @@ namespace VU
 		write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	IMPL_VU(VGE)
@@ -233,8 +252,8 @@ namespace VU
 		write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	IMPL_VU(VLT)
@@ -252,8 +271,8 @@ namespace VU
 		write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	IMPL_VU(VNE)
@@ -275,14 +294,14 @@ namespace VU
 		write_vcc_lo(rsp->cp2.flags[RSP::RSP_VCC].e, le);
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
 	// VINVALID
 	//
-	IMPL_VU(VINVALID)
+	IMPL_VU_S(VINVALID)
 	{
 		fprintf(stderr, "Unimplemented ...\n");
 	}
@@ -304,8 +323,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	IMPL_VU(VMACU)
@@ -321,11 +340,11 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
-	IMPL_VU(VMACQ)
+	IMPL_VU_S(VMACQ)
 	{
 		TRACE_VU(VMACQ);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -362,8 +381,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	IMPL_VU(VMUDH)
@@ -380,8 +399,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	//
@@ -402,8 +421,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	IMPL_VU(VMUDL)
@@ -420,8 +439,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	//
@@ -442,8 +461,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	IMPL_VU(VMUDM)
@@ -460,8 +479,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	//
@@ -482,8 +501,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	IMPL_VU(VMUDN)
@@ -500,14 +519,14 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	//
 	// VMOV
 	//
-	IMPL_VU(VMOV)
+    IMPL_VU_S(VMOV)
 	{
 		TRACE_VU(VMOV);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -529,8 +548,8 @@ namespace VU
 		rsp_vect_t result = rsp_vmrg(LOAD_VS(), LOAD_VT(), le);
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -548,11 +567,11 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
-	IMPL_VU(VMULQ)
+	IMPL_VU_S(VMULQ)
 	{
 		TRACE_VU(VMULQ);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -584,8 +603,8 @@ namespace VU
 
 		write_acc_lo(acc, acc_lo);
 		write_acc_md(acc, acc_md);
-		write_acc_hi(acc, acc_hi);
-		STORE_RESULT();
+	    write_acc_hi(acc, acc_hi);
+	    return result;
 	}
 
 	//
@@ -623,13 +642,13 @@ namespace VU
 		}
 	}
 
-	IMPL_VU(VRNDN)
+	IMPL_VU_S(VRNDN)
 	{
 		TRACE_VU(RSP_VRNDN);
 		RSP_VRND<e>(rsp, vd, vs, vt, 0);
 	}
 
-	IMPL_VU(VRNDP)
+	IMPL_VU_S(VRNDP)
 	{
 		TRACE_VU(RSP_VRNDP);
 	    RSP_VRND<e>(rsp, vd, vs, vt, 1);
@@ -638,7 +657,7 @@ namespace VU
 	//
 	// VNOP
 	//
-	IMPL_VU(VNOP)
+	IMPL_VU_S(VNOP)
 	{
 	}
 
@@ -654,7 +673,7 @@ namespace VU
 		rsp_vect_t result = rsp_vor(LOAD_VS(), LOAD_VT());
 
 		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    return result;
 	}
 
 	IMPL_VU(VNOR)
@@ -665,7 +684,7 @@ namespace VU
 		rsp_vect_t result = rsp_vnor(LOAD_VS(), LOAD_VT());
 
 		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    return result;
 	}
 
 	//
@@ -674,7 +693,7 @@ namespace VU
 	// VRSQ
 	// VRSQL
 	//
-	IMPL_VU(VRCP)
+    IMPL_VU_S(VRCP)
 	{
 		TRACE_VU(VRCP);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -686,7 +705,7 @@ namespace VU
 		return rsp_vrcp_vrsq<false>(rsp, 0, vt, e, vd, de);
 	}
 
-	IMPL_VU(VRCPL)
+	IMPL_VU_S(VRCPL)
 	{
 		TRACE_VU(VRCPL);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -700,7 +719,7 @@ namespace VU
 		return rsp_vrcp_vrsq<false>(rsp, dp, vt, e, vd, de);
 	}
 
-	IMPL_VU(VRSQ)
+	IMPL_VU_S(VRSQ)
 	{
 		TRACE_VU(VRSQ);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -712,7 +731,7 @@ namespace VU
 		return rsp_vrcp_vrsq<true>(rsp, 0, vt, e, vd, de);
 	}
 
-	IMPL_VU(VRSQL)
+	IMPL_VU_S(VRSQL)
 	{
 		TRACE_VU(VRSQL);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -730,7 +749,7 @@ namespace VU
 	// VRCPH
 	// VRSQH
 	//
-	IMPL_VU(VRCPH)
+    IMPL_VU_S(VRCPH)
 	{
 		TRACE_VU(VRCPH);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -744,7 +763,7 @@ namespace VU
 		return rsp_vdivh(rsp, vt, e, vd, de);
 	}
 
-	IMPL_VU(VRSQH)
+	IMPL_VU_S(VRSQH)
 	{
 		TRACE_VU(VRSQH);
 		uint16_t *acc = rsp->cp2.acc.e;
@@ -783,7 +802,7 @@ namespace VU
 			break;
 		}
 
-		STORE_RESULT();
+	    return result;
 	}
 
 	//
@@ -801,8 +820,8 @@ namespace VU
 
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, rsp_vzero());
-		write_acc_lo(acc, acc_lo);
-		STORE_RESULT();
+	    write_acc_lo(acc, acc_lo);
+	    return result;
 	}
 
 	//
@@ -818,8 +837,8 @@ namespace VU
 
 		write_vco_hi(rsp->cp2.flags[RSP::RSP_VCO].e, eq);
 		write_vco_lo(rsp->cp2.flags[RSP::RSP_VCO].e, sn);
-		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    write_acc_lo(acc, result);
+	    return result;
 	}
 
 	//
@@ -834,7 +853,7 @@ namespace VU
 		rsp_vect_t result = rsp_vxor(LOAD_VS(), LOAD_VT());
 
 		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    return result;
 	}
 
 	IMPL_VU(VNXOR)
@@ -845,7 +864,7 @@ namespace VU
 		rsp_vect_t result = rsp_vnxor(LOAD_VS(), LOAD_VT());
 
 		write_acc_lo(acc, result);
-		STORE_RESULT();
+	    return result;
 	}
 
 	// RESERVED
@@ -856,6 +875,6 @@ namespace VU
 		write_acc_lo(acc, result);
 
 		result = rsp_vzero();
-		STORE_RESULT();
+	    return result;
 	}
 }
