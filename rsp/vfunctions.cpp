@@ -16,7 +16,7 @@
 #include <stdio.h>
 
 #define LOAD_VS() rsp_vect_load_unshuffled_operand(rsp->cp2.regs[vs].e)
-#define LOAD_VT() rsp_vect_load_and_shuffle_operand(rsp->cp2.regs[vt].e, e)
+#define LOAD_VT() rsp_vect_load_and_shuffle_operand<e>(rsp->cp2.regs[vt].e)
 #define STORE_RESULT() rsp_vect_write_operand(rsp->cp2.regs[vd].e, result)
 
 #ifdef TRACE_COP2
@@ -592,7 +592,8 @@ namespace VU
 	// VRNDP
 	// VRNDN
 	//
-	static inline void RSP_VRND(RSP::CPUState *rsp, unsigned vd, unsigned vs, unsigned vt, unsigned e, uint_fast8_t variant)
+    template <unsigned e>
+	static inline void RSP_VRND(RSP::CPUState *rsp, unsigned vd, unsigned vs, unsigned vt, uint_fast8_t variant)
 	{
 		int16_t vte[8];
 		rsp_vect_t vtt = LOAD_VT();
@@ -625,13 +626,13 @@ namespace VU
 	IMPL_VU(VRNDN)
 	{
 		TRACE_VU(RSP_VRNDN);
-		RSP_VRND(rsp, vd, vs, vt, e, 0);
+		RSP_VRND<e>(rsp, vd, vs, vt, 0);
 	}
 
 	IMPL_VU(VRNDP)
 	{
 		TRACE_VU(RSP_VRNDP);
-		RSP_VRND(rsp, vd, vs, vt, e, 1);
+	    RSP_VRND<e>(rsp, vd, vs, vt, 1);
 	}
 
 	//

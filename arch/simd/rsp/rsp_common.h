@@ -34,43 +34,60 @@ namespace RSP
 struct CPUState;
 }
 
-// Loads and shuffles a 16x8 vector according to element.
-#ifdef __SSSE3__
-//
-// This table is used to "shuffle" the RSP vector after loading it.
-//
-alignas(64) static const uint16_t shuffle_keys[16][8] = {
-	/* -- */ { 0x0100, 0x0302, 0x0504, 0x0706, 0x0908, 0x0B0A, 0x0D0C, 0x0F0E },
-	/* -- */ { 0x0100, 0x0302, 0x0504, 0x0706, 0x0908, 0x0B0A, 0x0D0C, 0x0F0E },
-
-	/* 0q */ { 0x0100, 0x0100, 0x0504, 0x0504, 0x0908, 0x0908, 0x0D0C, 0x0D0C },
-	/* 1q */ { 0x0302, 0x0302, 0x0706, 0x0706, 0x0B0A, 0x0B0A, 0x0F0E, 0x0F0E },
-
-	/* 0h */ { 0x0100, 0x0100, 0x0100, 0x0100, 0x0908, 0x0908, 0x0908, 0x0908 },
-	/* 1h */ { 0x0302, 0x0302, 0x0302, 0x0302, 0x0B0A, 0x0B0A, 0x0B0A, 0x0B0A },
-	/* 2h */ { 0x0504, 0x0504, 0x0504, 0x0504, 0x0D0C, 0x0D0C, 0x0D0C, 0x0D0C },
-	/* 3h */ { 0x0706, 0x0706, 0x0706, 0x0706, 0x0F0E, 0x0F0E, 0x0F0E, 0x0F0E },
-
-	/* 0w */ { 0x0100, 0x0100, 0x0100, 0x0100, 0x0100, 0x0100, 0x0100, 0x0100 },
-	/* 1w */ { 0x0302, 0x0302, 0x0302, 0x0302, 0x0302, 0x0302, 0x0302, 0x0302 },
-	/* 2w */ { 0x0504, 0x0504, 0x0504, 0x0504, 0x0504, 0x0504, 0x0504, 0x0504 },
-	/* 3w */ { 0x0706, 0x0706, 0x0706, 0x0706, 0x0706, 0x0706, 0x0706, 0x0706 },
-	/* 4w */ { 0x0908, 0x0908, 0x0908, 0x0908, 0x0908, 0x0908, 0x0908, 0x0908 },
-	/* 5w */ { 0x0B0A, 0x0B0A, 0x0B0A, 0x0B0A, 0x0B0A, 0x0B0A, 0x0B0A, 0x0B0A },
-	/* 6w */ { 0x0D0C, 0x0D0C, 0x0D0C, 0x0D0C, 0x0D0C, 0x0D0C, 0x0D0C, 0x0D0C },
-	/* 7w */ { 0x0F0E, 0x0F0E, 0x0F0E, 0x0F0E, 0x0F0E, 0x0F0E, 0x0F0E, 0x0F0E },
-};
-
-static inline __m128i rsp_vect_load_and_shuffle_operand(const uint16_t *src, unsigned element)
+template<unsigned element>
+static inline __m128i rsp_vect_load_and_shuffle_operand(const uint16_t *src)
 {
-	__m128i operand = _mm_load_si128((__m128i *)src);
-	__m128i key = _mm_load_si128((__m128i *)shuffle_keys[element]);
+	__m128i v;
 
-	return _mm_shuffle_epi8(operand, key);
+	switch (element)
+	{
+	case 0:
+	case 1:
+		v = _mm_load_si128((__m128i *)src);
+		return v;
+
+	// element => 0q
+	case 2:
+		v = _mm_load_si128((__m128i *)src);
+		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(2, 2, 0, 0));
+		v = _mm_shufflehi_epi16(v, _MM_SHUFFLE(2, 2, 0, 0));
+		return v;
+
+	// element => 1q
+	case 3:
+		v = _mm_load_si128((__m128i *)src);
+		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(3, 3, 1, 1));
+		v = _mm_shufflehi_epi16(v, _MM_SHUFFLE(3, 3, 1, 1));
+		return v;
+
+	// element => 0h ... 3h
+	case 4:
+	case 5:
+	case 6:
+	case 7:
+		v = _mm_insert_epi16(v, src[element - 4], 0);
+		v = _mm_insert_epi16(v, src[element - 0], 1);
+		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(1, 1, 0, 0));
+		v = _mm_shuffle_epi32(v, _MM_SHUFFLE(1, 1, 0, 0));
+		return v;
+
+	// element => 0w ... 7w
+	case 8:
+	case 9:
+	case 10:
+	case 11:
+	case 12:
+	case 13:
+	case 14:
+	case 15:
+		v = _mm_insert_epi16(v, src[element - 8], 0);
+		v = _mm_unpacklo_epi16(v, v);
+		v = _mm_shuffle_epi32(v, _MM_SHUFFLE(0, 0, 0, 0));
+		return v;
+	}
+
+	__builtin_unreachable();
 }
-#else
-__m128i rsp_vect_load_and_shuffle_operand(const uint16_t *src, unsigned element);
-#endif
 
 // Loads a vector without shuffling its elements.
 static inline __m128i rsp_vect_load_unshuffled_operand(const uint16_t *src)

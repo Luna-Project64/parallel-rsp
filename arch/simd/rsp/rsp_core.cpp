@@ -211,68 +211,6 @@ void rsp_set_flags(uint16_t *flags, uint16_t rt)
 		memcpy(flags + 0 + i * 4, array[rt & 0xF], sizeof(array[0]));
 }
 
-#ifndef __SSSE3__
-__m128i rsp_vect_load_and_shuffle_operand(const uint16_t *src, unsigned element)
-{
-	__m128i v;
-
-	switch (element)
-	{
-	case 0:
-	case 1:
-		v = _mm_load_si128((__m128i *)src);
-		return v;
-
-	// element => 0q
-	case 2:
-		v = _mm_load_si128((__m128i *)src);
-		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(2, 2, 0, 0));
-		v = _mm_shufflehi_epi16(v, _MM_SHUFFLE(2, 2, 0, 0));
-		return v;
-
-	// element => 1q
-	case 3:
-		v = _mm_load_si128((__m128i *)src);
-		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(3, 3, 1, 1));
-		v = _mm_shufflehi_epi16(v, _MM_SHUFFLE(3, 3, 1, 1));
-		return v;
-
-	// element => 0h ... 3h
-	case 4:
-	case 5:
-	case 6:
-	case 7:
-		__asm__("" : "=x"(v)); /* Do not remove. */
-		v = _mm_insert_epi16(v, src[element - 4], 0);
-		v = _mm_insert_epi16(v, src[element - 0], 1);
-		v = _mm_shufflelo_epi16(v, _MM_SHUFFLE(1, 1, 0, 0));
-		v = _mm_shuffle_epi32(v, _MM_SHUFFLE(1, 1, 0, 0));
-		return v;
-
-	// element => 0w ... 7w
-	case 8:
-	case 9:
-	case 10:
-	case 11:
-	case 12:
-	case 13:
-	case 14:
-	case 15:
-		__asm__("" : "=x"(v)); /* Do not remove. */
-		v = _mm_insert_epi16(v, src[element - 8], 0);
-		v = _mm_unpacklo_epi16(v, v);
-		v = _mm_shuffle_epi32(v, _MM_SHUFFLE(0, 0, 0, 0));
-		return v;
-	}
-
-#ifdef NDEBUG
-	__builtin_unreachable();
-#else
-	__builtin_trap();
-#endif
-}
-#endif
-
 //
 // SSSE3+ accelerated loads for group I. Byteswap big-endian to 2-byte
 // little-endian vector. Start at vector element offset, discarding any
