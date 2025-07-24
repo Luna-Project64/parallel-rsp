@@ -212,8 +212,6 @@ extern "C"
 	EXPORT void CALL RomClosed(void)
 	{
 		*RSP::rsp.SP_PC_REG = 0x00000000;
-		delete RSP::cpu;
-		RSP::cpu = nullptr;
 	}
 	
 	EXPORT void CALL SetSettingInfo(RSP::Zilmar::PLUGIN_SETTINGS * info)
@@ -282,6 +280,8 @@ extern "C"
 
 	EXPORT void CALL CloseDLL(void)
 	{
+		delete RSP::cpu;
+		RSP::cpu = nullptr;
 	}
 
 	EXPORT void CALL DllConfig(int hWnd)
