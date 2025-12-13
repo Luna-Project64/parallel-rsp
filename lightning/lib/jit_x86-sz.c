@@ -10,7 +10,7 @@
     0,	/* #name */
     0,	/* #note */
     3,	/* label */
-    34,	/* prolog */
+    130,	/* prolog */
     0,	/* ellipsis */
     0,	/* va_push */
     0,	/* allocai */
@@ -228,7 +228,7 @@
     2,	/* jmpr */
     5,	/* jmpi */
     2,	/* callr */
-    5,	/* calli */
+    20,	/* calli */
     0,	/* prepare */
     0,	/* pushargr_c */
     0,	/* pushargi_c */
@@ -325,11 +325,11 @@
     4,	/* ldr_f */
     8,	/* ldi_f */
     5,	/* ldxr_f */
-    8,	/* ldxi_f */
+    11,	/* ldxi_f */
     6,	/* str_f */
     10,	/* sti_f */
     7,	/* stxr_f */
-    8,	/* stxi_f */
+    11,	/* stxi_f */
     10,	/* bltr_f */
     23,	/* blti_f */
     10,	/* bler_f */
