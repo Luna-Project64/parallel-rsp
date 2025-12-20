@@ -295,11 +295,12 @@ extern "C"
 	}
 
 #ifdef TRACE
-	static void JIT_DECL rsp_report_pc(const CPUState *state, jit_uword_t pc, jit_uword_t instr)
+	extern "C" __stdcall void OutputDebugStringA(const char* lpOutputString);
+	static void JIT_UA_DECL rsp_report_pc(const CPUState *state, jit_uword_t pc, jit_uword_t instr)
 	{
 		auto disasm = disassemble(pc, instr);
-		disasm += " (" + std::to_string(hash_registers(state)) + ") (" + std::to_string(hash_dmem(state)) + ")";
-		puts(disasm.c_str());
+		disasm += " (" + std::to_string(hash_registers(state)) + ") (" + std::to_string(hash_dmem(state)) + ")\n";
+		OutputDebugStringA(disasm.c_str());
 	}
 #endif
 
@@ -878,13 +879,27 @@ void CPU::jit_instruction(jit_state_t *_jit, uint32_t pc, uint32_t instr,
                           InstructionInfo &info, const InstructionInfo &last_info,
                           bool first_instruction, bool next_instruction_is_branch_target)
 {
-#ifdef TRACE
-	regs.flush_register_window(_jit);
-	jit_begin_call(_jit);
-	jit_pushargr(JIT_REGISTER_STATE);
-	jit_pushargi(pc);
-	jit_pushargi(instr);
-	jit_end_call(_jit, reinterpret_cast<jit_pointer_t>(rsp_report_pc));
+#if TRACE
+	//if (0xB08 <= pc && pc <= 0xB08)
+	{
+		// int a = 0;
+		// regs.flush_register_window(_jit);
+#if 0
+		jit_begin_call(_jit);
+
+#ifdef HAS_FASTCALL
+		jit_pushimm(instr);
+		jit_pushimm(pc);
+		jit_pushr(JIT_REGISTER_STATE);
+#else
+		jit_pushargr(JIT_REGISTER_STATE);
+		jit_pushargi(pc);
+		jit_pushargi(instr);
+#endif
+
+		jit_end_call(_jit, reinterpret_cast<Func>(rsp_report_pc));
+#endif
+	}
 #endif
 
 	// VU
@@ -1926,6 +1941,11 @@ Func CPU::jit_region(uint64_t hash, unsigned pc_word, unsigned instruction_count
 
 	InstructionInfo last_info = {};
 	InstructionInfo first_info = {};
+
+	jit_live(JIT_REGISTER_STATE);
+	jit_live(JIT_REGISTER_DMEM);
+	jit_live(JIT_REGISTER_INDIRECT_PC);
+
 
 	for (unsigned i = 0; i < instruction_count; i++)
 	{
