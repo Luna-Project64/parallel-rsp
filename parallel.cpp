@@ -96,7 +96,11 @@ namespace Zilmar
 }
 } // namespace RSP
 
+#ifdef PARALLEL_STATIC
+namespace Parallel
+#else
 extern "C"
+#endif
 {
 	// Hack entry point to use when loading savestates when we're tracing.
 	void rsp_clear_registers()
