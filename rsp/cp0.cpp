@@ -13,9 +13,8 @@ extern int SP_STATUS_TIMEOUT;
 extern int SP_SEMAPHORE_TIMEOUT;
 extern bool graphics_hle;
 } // namespace RSP
-#ifdef PARALLEL_INTEGRATION_EX
 extern uint32_t m64p_rsp_yielded_on_semaphore;
-#endif
+extern bool rsp_yield_aware;
 #endif
 
 using namespace RSP;
@@ -29,57 +28,44 @@ namespace CP
 
 	int JIT_DECL RSP_MFC0(RSP::CPUState *rsp, unsigned rt, unsigned rd)
 	{
-		rd &= 15;
-		uint32_t res = *rsp->cp0.cr[rd];
-		if (rt)
-			rsp->sr[rt] = res;
+	    rd &= 15;
+	    uint32_t res = *rsp->cp0.cr[rd];
+	    if (rt)
+		    rsp->sr[rt] = res;
 
 #ifdef PARALLEL_INTEGRATION
-		if (rd == CP0_REGISTER_SP_STATUS)
-		{
-			// Might be waiting for the CPU to set a signal bit on the STATUS register. Increment timeout
-			RSP::MFC0_count[rt] += 1;
-			if (RSP::MFC0_count[rt] >= RSP::SP_STATUS_TIMEOUT)
-			{
-				*RSP::rsp.SP_STATUS_REG |= SP_STATUS_HALT;
-				return MODE_CHECK_FLAGS;
-			}
-		}
+	    if (rd == CP0_REGISTER_SP_STATUS)
+	    {
+		    // Might be waiting for the CPU to set a signal bit on the STATUS register. Increment timeout
+		    RSP::MFC0_count[rt] += 1;
+		    if (RSP::MFC0_count[rt] >= RSP::SP_STATUS_TIMEOUT)
+		    {
+			    *RSP::rsp.SP_STATUS_REG |= SP_STATUS_HALT;
+			    return MODE_CHECK_FLAGS;
+		    }
+	    }
 #endif
 
-		if (rd == CP0_REGISTER_SP_SEMAPHORE)
-		{
+	    if (rd == CP0_REGISTER_SP_SEMAPHORE)
+	    {
+		    if (*rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE])
+		    {
 #ifdef PARALLEL_INTEGRATION
-			if (graphics_hle)
-			{
-				rsp->sr[rt] = 0;
-			}
-#if 0
-			else
+			    if (rsp_yield_aware && (++RSP::semaphore_count[rt] >= RSP::SP_SEMAPHORE_TIMEOUT))
+			    {
+				    m64p_rsp_yielded_on_semaphore = 1;
+				    return MODE_CHECK_FLAGS;
+			    }
 #endif
-#endif
-#if 0
-			{
-				if (*rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE])
-				{
-	#ifdef PARALLEL_INTEGRATION_EX
-					if (++RSP::semaphore_count[rt] >= RSP::SP_SEMAPHORE_TIMEOUT)
-					{
-						m64p_rsp_yielded_on_semaphore = 1;
-						return MODE_CHECK_FLAGS;
-					}
-	#endif
-				}
-				else
-					*rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE] = 1;
-			}
-#endif
-		}
+		    }
+		    else
+			    *rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE] = 1;
+	    }
 
-		//if (rd == 4) // SP_STATUS_REG
-		//   fprintf(stderr, "READING STATUS REG!\n");
+	    //if (rd == 4) // SP_STATUS_REG
+	    //   fprintf(stderr, "READING STATUS REG!\n");
 
-		return MODE_CONTINUE;
+	    return MODE_CONTINUE;
 	}
 
 	int JIT_DECL RSP_MFC0(RSP::CPUState* rsp, uint32_t value)

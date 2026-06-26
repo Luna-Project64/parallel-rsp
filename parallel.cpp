@@ -10,9 +10,8 @@
 #define RSP_PARALLEL_VERSION 0x0101
 #define RSP_PLUGIN_API_VERSION 0x020000
 
-#ifdef PARALLEL_INTEGRATION_EX
 uint32_t m64p_rsp_yielded_on_semaphore;
-#endif
+bool rsp_yield_aware = false;
 
 namespace RSP
 {
@@ -129,9 +128,7 @@ extern "C"
 
 	EXPORT unsigned int CALL DoRspCycles(unsigned int cycles)
 	{
-#ifdef PARALLEL_INTEGRATION_EX
 		m64p_rsp_yielded_on_semaphore = 0;
-#endif
 
 		uint32_t TaskType = *(uint32_t*)(RSP::rsp.DMEM + 0xFC0);
 		if (TaskType == 1 && RSP::graphics_hle && *(uint32_t*)(RSP::rsp.DMEM + 0x0ff0) != 0)
@@ -176,27 +173,23 @@ extern "C"
 			auto mode = RSP::cpu->run();
 			if (mode == RSP::MODE_CHECK_FLAGS && (*RSP::cpu->get_state().cp0.irq & 1))
 				break;
-#ifdef PARALLEL_INTEGRATION_EX
 			if (m64p_rsp_yielded_on_semaphore)
 				break;
-#endif
 		}
 
 		*RSP::rsp.SP_PC_REG = 0x04001000 | (RSP::cpu->get_state().pc & 0xffc);
-#ifdef PARALLEL_INTEGRATION_EX
 		if (m64p_rsp_yielded_on_semaphore)
 			return cycles;
-#endif
 
-		// From CXD4.
-		if (*RSP::rsp.SP_STATUS_REG & SP_STATUS_BROKE)
-			return cycles;
-		else if (*RSP::cpu->get_state().cp0.irq & 1)
-			RSP::rsp.CheckInterrupts();
-		else if (*RSP::rsp.SP_STATUS_REG & SP_STATUS_HALT)
-			return cycles;
-		else
-			RSP::SP_STATUS_TIMEOUT = 16; // From now on, wait 16 times, not 0x7fff
+	    // From CXD4.
+	    if (*RSP::rsp.SP_STATUS_REG & SP_STATUS_BROKE)
+		    return cycles;
+	    else if (*RSP::cpu->get_state().cp0.irq & 1)
+		    RSP::rsp.CheckInterrupts();
+	    else if (*RSP::rsp.SP_STATUS_REG & SP_STATUS_HALT)
+		    return cycles;
+	    else
+		    RSP::SP_STATUS_TIMEOUT = 0x7fff;
 
 		// CPU restarts with the correct SIGs.
 		*RSP::rsp.SP_STATUS_REG &= ~SP_STATUS_HALT;
@@ -274,8 +267,8 @@ extern "C"
 		RSP::cpu->get_state().cp0.irq = RSP::rsp.MI_INTR_REG;
 
 		// From CXD4.
-		RSP::SP_STATUS_TIMEOUT = 0x7fff;
-		RSP::SP_SEMAPHORE_TIMEOUT = 4;
+	    RSP::SP_STATUS_TIMEOUT = 0x7fffff;
+	    RSP::SP_SEMAPHORE_TIMEOUT = 4;
 
 		RSP::cpu->set_dmem(reinterpret_cast<uint32_t *>(Rsp_Info.DMEM));
 		RSP::cpu->set_imem(reinterpret_cast<uint32_t *>(Rsp_Info.IMEM));
@@ -290,5 +283,11 @@ extern "C"
 
 	EXPORT void CALL DllConfig(int hWnd)
 	{
+	}
+
+	EXPORT uint32_t* CALL LunaGetRspYieldedOnSemaphore(void)
+	{
+	    rsp_yield_aware = true;
+	    return &m64p_rsp_yielded_on_semaphore;
 	}
 }
