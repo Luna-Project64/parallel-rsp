@@ -268,7 +268,7 @@ extern "C"
 
 		// From CXD4.
 	    RSP::SP_STATUS_TIMEOUT = 0x7fffff;
-	    RSP::SP_SEMAPHORE_TIMEOUT = 4;
+	    RSP::SP_SEMAPHORE_TIMEOUT = 1000;
 
 		RSP::cpu->set_dmem(reinterpret_cast<uint32_t *>(Rsp_Info.DMEM));
 		RSP::cpu->set_imem(reinterpret_cast<uint32_t *>(Rsp_Info.IMEM));
