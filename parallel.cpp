@@ -26,10 +26,12 @@ short semaphore_count[32];
 int SP_STATUS_TIMEOUT;
 int SP_SEMAPHORE_TIMEOUT;
 bool graphics_hle = false;
+bool audio_hle = false;
 
 namespace Zilmar
 {
 	short Set_GraphicsHle = 0;
+	short Set_AudioHle = 0;
 	enum SettingLocation
 	{
 		SettingType_ConstString = 0,
@@ -126,6 +128,95 @@ extern "C"
 	}
 #endif
 
+	static bool hasHLEAudio()
+    {
+	    uint32_t ucdata = *(uint32_t *)(RSP::rsp.DMEM + 0xFD8);
+	    uint8_t *udata = RSP::rsp.RDRAM + ucdata;
+
+	    if (*(uint32_t*)udata == 0x00000001)
+	    {
+		    if (*(uint32_t *)(udata + 0x30) == 0xf0000f00)
+		    {
+			    uint32_t v = *(uint32_t *)(udata + 0x28);
+			    switch (v)
+			    {
+			    case 0x1e24138c: /* audio ABI (most common) */
+				    return true;
+			    case 0x1dc8138c: /* GoldenEye */
+				    return true;
+			    case 0x1e3c1390: /* BlastCorp, DiddyKongRacing */
+				    return true;
+			    default:
+				    return false;
+			    }
+		    }
+		    else
+		    {
+			    uint32_t v = *(uint32_t *)(udata + 0x10);
+			    switch (v)
+			    {
+			    case 0x11181350: /* MarioKart, WaveRace (E) */
+				    return true;
+			    case 0x111812e0: /* StarFox (J) */
+				    return true;
+			    case 0x110412ac: /* WaveRace (J RevB) */
+				    return true;
+			    case 0x110412cc: /* StarFox/LylatWars (except J) */
+				    return true;
+			    case 0x1cd01250: /* FZeroX */
+				    return true;
+			    case 0x1f08122c: /* YoshisStory */
+				    return true;
+			    case 0x1f38122c: /* 1080° Snowboarding */
+				    return true;
+			    case 0x1f681230: /* Zelda OoT / Zelda MM (J, J RevA) */
+				    return true;
+			    case 0x1f801250: /* Zelda MM (except J, J RevA, E Beta), PokemonStadium 2 */
+				    return true;
+			    case 0x109411f8: /* Zelda MM (E Beta) */
+				    return true;
+			    case 0x1eac11b8: /* AnimalCrossing */
+				    return true;
+			    case 0x00010010: /* MusyX v2 (IndianaJones, BattleForNaboo) */
+				    return true;
+			    case 0x1f701238: /* Mario Artist Talent Studio */
+				    return true;
+			    case 0x1f4c1230: /* FZeroX Expansion */
+				    return true;
+			    default:
+				    return false;
+			    }
+		    }
+	    }
+	    else
+	    {
+		    uint32_t v = *(uint32_t *)(udata + 0x10);
+		    switch (v)
+		    {
+		    case 0x00000001: /* MusyX v1
+            RogueSquadron, ResidentEvil2, PolarisSnoCross,
+            TheWorldIsNotEnough, RugratsInParis, NBAShowTime,
+            HydroThunder, Tarzan, GauntletLegend, Rush2049 */
+			    return true;
+		    case 0x0000127c: /* naudio (many games) */
+			    return true;
+		    case 0x00001280: /* BanjoKazooie */
+			    return true;
+		    case 0x1c58126c: /* DonkeyKong */
+			    return true;
+		    case 0x1ae8143c: /* BanjoTooie, JetForceGemini, MickeySpeedWayUSA, PerfectDark */
+			    return true;
+		    case 0x1ab0140c: /* ConkerBadFurDay */
+			    return true;
+
+		    default:
+			    return false;
+		    }
+	    }
+
+	    return false;
+	}
+
 	EXPORT unsigned int CALL DoRspCycles(unsigned int cycles)
 	{
 		m64p_rsp_yielded_on_semaphore = 0;
@@ -146,6 +237,21 @@ extern "C"
 
 			*RSP::rsp.DPC_STATUS_REG &= ~0x0002;
 			return cycles;
+		}
+
+		if (TaskType == 2 && hasHLEAudio())
+		{
+			if (RSP::rsp.ProcessAlist)
+			{
+				RSP::rsp.ProcessAlist();
+			}
+			*RSP::rsp.SP_STATUS_REG |= (0x0203 );
+			if ((*RSP::rsp.SP_STATUS_REG & SP_STATUS_INTR_BREAK) != 0 )
+			{
+				*RSP::rsp.MI_INTR_REG |= 1;
+				RSP::rsp.CheckInterrupts();
+			}
+		    return cycles;
 		}
 
 		if (*RSP::rsp.SP_STATUS_REG & SP_STATUS_HALT)
@@ -224,11 +330,13 @@ extern "C"
 	EXPORT void CALL PluginLoaded(void)
 	{
 		RSP::Zilmar::Set_GraphicsHle = RSP::Zilmar::FindSystemSettingId("HLE GFX");
+	    RSP::Zilmar::Set_AudioHle = RSP::Zilmar::FindSystemSettingId("HLE Audio");
 	}
 
 	EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
 	{
 		RSP::graphics_hle = RSP::Zilmar::GetSystemSetting(RSP::Zilmar::Set_GraphicsHle);
+	    RSP::audio_hle = RSP::Zilmar::GetSystemSetting(RSP::Zilmar::Set_AudioHle);
 
 		if (CycleCount)
 			*CycleCount = 0;
