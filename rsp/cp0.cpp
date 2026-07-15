@@ -1,6 +1,7 @@
 #include "../state.hpp"
 #include "../jit_decl.h"
 #include "packed_cp.h"
+#include <string.h>
 
 #ifdef PARALLEL_INTEGRATION
 #include "../Zilmar_Rsp.h"
@@ -117,117 +118,114 @@ namespace CP
 
 #ifdef PARALLEL_INTEGRATION
 	static int rsp_dma_read(RSP::CPUState *rsp)
-	{
-		uint32_t length_reg = *rsp->cp0.cr[CP0_REGISTER_DMA_READ_LENGTH];
-		uint32_t length = (length_reg & 0xFFF) + 1;
-		uint32_t skip = (length_reg >> 20) & 0xFFF;
-		unsigned count = (length_reg >> 12) & 0xFF;
+    {
+	    uint32_t length_reg = *rsp->cp0.cr[CP0_REGISTER_DMA_READ_LENGTH];
+	    uint32_t length = ((length_reg & 0xFFF) | 7) + 1;
+	    uint32_t skip = (length_reg >> 20) & 0xFF8;
+	    unsigned count = ((length_reg >> 12) & 0xFF) + 1;
 
-		// Force alignment.
-		length = (length + 0x7) & ~0x7;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] &= ~0x7;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] &= ~0x7;
+	    unsigned i = 0;
+	    uint32_t rdram = *rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] & 0xfffff8;
+	    uint32_t spmem = *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0xff8;
+	    bool imem = *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0x1000;
+		// TODO: Technically aliasing
+	    uint8_t *rsp_ptr = imem ? (uint8_t *)rsp->imem : (uint8_t *)rsp->dmem;
 
-		// Check length.
-		if (((*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0xFFF) + length) > 0x1000)
-			length = 0x1000 - (*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0xFFF);
+	    if ((0 == skip || 1 == count) && (spmem + length) <= 0x1000 && (rdram + length) <= rsp->rdram_size)
+	    {
+		    // TODO: Sane case should probably also include the case where skip == 0 but i do not care enough
+		    uint8_t *rdram_ptr = ((uint8_t*)rsp->rdram) + rdram;
+		    memcpy(rsp_ptr + spmem, rdram_ptr, length);
+		    unsigned first = spmem / CODE_BLOCK_SIZE;
+		    unsigned last = (spmem + length - 1) / CODE_BLOCK_SIZE;
 
-		unsigned i = 0;
-		uint32_t source = *rsp->cp0.cr[CP0_REGISTER_DMA_DRAM];
-		uint32_t dest = *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE];
+		    for (unsigned block = first; block <= last; block++)
+				rsp->dirty_blocks |= (1u << block);
 
-#ifdef INTENSE_DEBUG
-		fprintf(stderr, "DMA READ: (0x%x <- 0x%x) len %u, count %u, skip %u\n", dest & 0x1ffc, source & 0x7ffffc,
-		        length, count + 1, skip);
-#endif
+			rdram += length;
+		    spmem += length;
+		}
+	    else
+	    {
+		    do
+		    {
+			    unsigned j = 0;
+			    do
+			    {
+				    uint32_t source_addr = rdram + j;
+				    uint32_t dest_addr = (spmem + j) & 0xfff;
+				    uint64_t word = source_addr >= rsp->rdram_size ? 0 : *(uint64_t *)(((uint8_t*)rsp->rdram) + source_addr);
+					if (imem)
+				    {
+					    // Invalidate IMEM - this roundness is sufficient because of dest_addr
+					    unsigned block = (dest_addr & 0xfff) / CODE_BLOCK_SIZE;
+					    rsp->dirty_blocks |= (0x3 << block) >> 1;
+					    //rsp->dirty_blocks = ~0u;
+					}
 
-		do
-		{
-			unsigned j = 0;
-			do
-			{
-				uint32_t source_addr = (source + j) & 0x7FFFFC;
-				uint32_t dest_addr = (dest + j) & 0x1FFC;
-				uint32_t word = rsp->rdram[source_addr >> 2];
+				    *(uint64_t *)(rsp_ptr + dest_addr) = word;
 
-				if (dest_addr & 0x1000)
-				{
-					// Invalidate IMEM.
-					unsigned block = (dest_addr & 0xfff) / CODE_BLOCK_SIZE;
-					rsp->dirty_blocks |= (0x3 << block) >> 1;
-					//rsp->dirty_blocks = ~0u;
-					rsp->imem[(dest_addr & 0xfff) >> 2] = word;
-				}
-				else
-					rsp->dmem[dest_addr >> 2] = word;
+				    j += 8;
+			    } while (j < length);
 
-				j += 4;
-			} while (j < length);
+			    rdram += length + skip;
+			    spmem += length;
+		    } while (++i < count);
+	    }
 
-			source += length + skip;
-			dest += length;
-		} while (++i <= count);
+	    *rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] = rdram;
+	    *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] = spmem & 0xff8;
+	    *rsp->cp0.cr[CP0_REGISTER_DMA_READ_LENGTH] = 0xff8;
 
-		*rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] = source;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] = dest;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_READ_LENGTH] = 0xff8;
-
-#ifdef INTENSE_DEBUG
-		log_rsp_mem_parallel();
-#endif
-		return rsp->dirty_blocks ? MODE_CHECK_FLAGS : MODE_CONTINUE;
+	    return rsp->dirty_blocks ? MODE_CHECK_FLAGS : MODE_CONTINUE;
 	}
 
 	static void rsp_dma_write(RSP::CPUState *rsp)
-	{
-		uint32_t length_reg = *rsp->cp0.cr[CP0_REGISTER_DMA_WRITE_LENGTH];
-		uint32_t length = (length_reg & 0xFFF) + 1;
-		uint32_t skip = (length_reg >> 20) & 0xFFF;
-		unsigned count = (length_reg >> 12) & 0xFF;
+    {
+	    uint32_t length_reg = *rsp->cp0.cr[CP0_REGISTER_DMA_WRITE_LENGTH];
+	    uint32_t length = ((length_reg & 0xFFF) | 7) + 1;
+	    uint32_t skip = (length_reg >> 20) & 0xFF8;
+	    unsigned count = ((length_reg >> 12) & 0xFF) + 1;
 
-		// Force alignment.
-		length = (length + 0x7) & ~0x7;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] &= ~0x3;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] &= ~0x7;
+	    unsigned i = 0;
+	    uint32_t rdram = *rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] & 0xfffff8;
+	    uint32_t spmem = *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0xff8;
+	    bool imem = *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0x1000;
+	    // TODO: Technically aliasing
+	    uint8_t *rsp_ptr = imem ? (uint8_t *)rsp->imem : (uint8_t *)rsp->dmem;
 
-		// Check length.
-		if (((*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0xFFF) + length) > 0x1000)
-			length = 0x1000 - (*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] & 0xFFF);
+	    if ((0 == skip || 1 == count) && (spmem + length) <= 0x1000 && (rdram + length) <= rsp->rdram_size)
+	    {
+		    // TODO: Sane case should probably also include the case where skip == 0 but i do not care enough
+		    uint8_t *rdram_ptr = ((uint8_t*)rsp->rdram) + rdram;
+		    memcpy(rdram_ptr, rsp_ptr + spmem, length);
+		    rdram += length;
+		    spmem += length;
+	    }
+	    else
+	    {
+		    do
+		    {
+			    unsigned j = 0;
+			    do
+			    {
+				    uint32_t dest_addr = rdram + j;
+				    uint32_t source_addr = (spmem + j) & 0xfff;
+				    uint64_t word = *(uint64_t *)(rsp_ptr + source_addr);
+				    if (dest_addr < rsp->rdram_size)
+					    *(uint64_t *)(((uint8_t*)rsp->rdram) + dest_addr) = word;
 
-		uint32_t dest = *rsp->cp0.cr[CP0_REGISTER_DMA_DRAM];
-		uint32_t source = *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE];
+				    j += 8;
+			    } while (j < length);
 
-#ifdef INTENSE_DEBUG
-		fprintf(stderr, "DMA WRITE: (0x%x <- 0x%x) len %u, count %u, skip %u\n", dest & 0x7ffffc, source & 0x1ffc,
-		        length, count + 1, skip);
-#endif
+			    rdram += length + skip;
+			    spmem += length;
+		    } while (++i < count);
+	    }
 
-		unsigned i = 0;
-		do
-		{
-			unsigned j = 0;
-
-			do
-			{
-				uint32_t source_addr = (source + j) & 0x1FFC;
-				uint32_t dest_addr = (dest + j) & 0x7FFFFC;
-
-				rsp->rdram[dest_addr >> 2] =
-				    (source_addr & 0x1000) ? rsp->imem[(source_addr & 0xfff) >> 2] : rsp->dmem[source_addr >> 2];
-
-				j += 4;
-			} while (j < length);
-
-			source += length;
-			dest += length + skip;
-		} while (++i <= count);
-
-		*rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] = source;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] = dest;
-		*rsp->cp0.cr[CP0_REGISTER_DMA_WRITE_LENGTH] = 0xff8;
-#ifdef INTENSE_DEBUG
-		log_rsp_mem_parallel();
-#endif
+	    *rsp->cp0.cr[CP0_REGISTER_DMA_DRAM] = rdram;
+	    *rsp->cp0.cr[CP0_REGISTER_DMA_CACHE] = spmem & 0xff8;
+	    *rsp->cp0.cr[CP0_REGISTER_DMA_WRITE_LENGTH] = 0xff8;
 	}
 #endif
 

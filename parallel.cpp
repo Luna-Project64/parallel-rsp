@@ -32,6 +32,7 @@ namespace Zilmar
 {
 	short Set_GraphicsHle = 0;
 	short Set_AudioHle = 0;
+    short Set_RdramSize = 0;
 	enum SettingLocation
 	{
 		SettingType_ConstString = 0,
@@ -331,6 +332,7 @@ extern "C"
 	{
 		RSP::Zilmar::Set_GraphicsHle = RSP::Zilmar::FindSystemSettingId("HLE GFX");
 	    RSP::Zilmar::Set_AudioHle = RSP::Zilmar::FindSystemSettingId("HLE Audio");
+	    RSP::Zilmar::Set_RdramSize = RSP::Zilmar::FindSystemSettingId("RDRamSize");
 	}
 
 	EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
@@ -349,6 +351,15 @@ extern "C"
 #else
 		RSP::cpu = new (std::align_val_t(64)) RSP::JIT::CPU();
 #endif
+
+	    if (RSP::Zilmar::Set_RdramSize)
+	    {
+		    RSP::cpu->set_rdram_size(RSP::Zilmar::GetSystemSetting(RSP::Zilmar::Set_RdramSize));
+	    }
+	    else
+	    {
+		    RSP::cpu->set_rdram_size(8*1024*1024);
+	    }
 
 		RSP::rsp = Rsp_Info;
 		*RSP::rsp.SP_PC_REG = 0x04001000 & 0x00000FFF; /* task init bug on Mupen64 */

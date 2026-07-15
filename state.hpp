@@ -124,6 +124,7 @@ struct alignas(64) CPUState
 	uint32_t branch_target = 0;
 
 	uint32_t sr[33] = {}; // r32 is used as a scratch register.
+	uint32_t rdram_size = 0;
 	uint32_t *dmem = nullptr;
 	uint32_t *imem = nullptr;
 	uint32_t *rdram = nullptr;

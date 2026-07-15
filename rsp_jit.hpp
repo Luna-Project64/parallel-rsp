@@ -109,6 +109,11 @@ public:
 		state.rdram = rdram;
 	}
 
+	void set_rdram_size(uint32_t size)
+	{
+		state.rdram_size = size;
+	}
+
 	void invalidate_imem();
 
 	CPUState &get_state()
