@@ -181,8 +181,6 @@ extern "C"
 				    return true;
 			    case 0x1f701238: /* Mario Artist Talent Studio */
 				    return true;
-			    case 0x1f4c1230: /* FZeroX Expansion */
-				    return true;
 			    default:
 				    return false;
 			    }
@@ -307,7 +305,7 @@ extern "C"
 	{
 		PluginInfo->Version = 0x0101;
 		PluginInfo->Type = PLUGIN_TYPE_RSP;
-		strcpy(PluginInfo->Name, "ParaLLel Launcher RSP Plugin v1.1.1");
+		strcpy(PluginInfo->Name, "ParaLLel Launcher RSP Plugin v1.1.2");
 		PluginInfo->NormalMemory = 1;
 		PluginInfo->MemoryBswaped = 1;
 	}
